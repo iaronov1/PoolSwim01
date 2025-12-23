@@ -1,6 +1,6 @@
 import json
 from typing import Dict, Any, Tuple, Optional
-from anthropic import Anthropic
+from anthropic import AsyncAnthropic
 from bot.extension_manager import ExtensionManager
 
 
@@ -11,7 +11,7 @@ class NLPProcessor:
     """
 
     def __init__(self, api_key: str, extension_manager: ExtensionManager):
-        self.client = Anthropic(api_key=api_key)
+        self.client = AsyncAnthropic(api_key=api_key)
         self.extension_manager = extension_manager
 
     async def process_command(self, user_message: str) -> Tuple[Optional[str], Dict[str, Any]]:
@@ -31,8 +31,8 @@ class NLPProcessor:
         prompt = self._create_routing_prompt(user_message, extensions_info)
 
         try:
-            # Call Claude API
-            message = self.client.messages.create(
+            # Call Claude API (async)
+            message = await self.client.messages.create(
                 model="claude-3-5-sonnet-20241022",
                 max_tokens=1024,
                 messages=[
