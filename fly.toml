@@ -1,0 +1,24 @@
+# fly.toml app configuration file
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+
+app = "telegram-bot-extensible"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ENVIRONMENT = "production"
+  LOG_LEVEL = "INFO"
+
+# This is a long-running process, not an HTTP service
+# So we don't need HTTP service configuration
+
+[processes]
+  app = "python -m bot.main"
+
+# Resource allocation
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
