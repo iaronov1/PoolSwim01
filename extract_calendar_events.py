@@ -19,6 +19,7 @@ from typing import List, Tuple, Optional
 
 import pytz
 import requests
+import recurring_ical_events
 from icalendar import Calendar
 
 
@@ -123,6 +124,10 @@ def get_events_in_next_24_hours(calendar: Calendar, local_tz: pytz.timezone) -> 
     """
     Extract all events from the calendar that occur within the next 24 hours.
 
+    This function now properly handles recurring events by expanding them using
+    the recurring-ical-events library. This means that events with RRULE
+    (recurrence rules) will be expanded into individual instances.
+
     Args:
         calendar: The parsed Calendar object
         local_tz: The local timezone to use for filtering and display
@@ -139,12 +144,13 @@ def get_events_in_next_24_hours(calendar: Calendar, local_tz: pytz.timezone) -> 
 
     events = []
 
-    # Iterate through all components in the calendar
-    for component in calendar.walk():
-        # We're only interested in VEVENT components (actual events)
-        if component.name != "VEVENT":
-            continue
+    # Use recurring-ical-events to expand recurring events within our time window
+    # This library automatically handles RRULE, EXDATE, RDATE, and other recurrence features
+    # The 'between()' method returns expanded event instances, not just the base definitions
+    expanded_events = recurring_ical_events.of(calendar).between(now, twenty_four_hours_later)
 
+    # Process each expanded event instance
+    for component in expanded_events:
         # Extract event details
         summary = str(component.get('summary', 'No Title'))
         dtstart = component.get('dtstart')
@@ -169,9 +175,10 @@ def get_events_in_next_24_hours(calendar: Calendar, local_tz: pytz.timezone) -> 
         start_local = normalize_to_local_timezone(start_dt, local_tz)
         end_local = normalize_to_local_timezone(end_dt, local_tz)
 
-        # Check if the event starts within our 24-hour window
-        if now <= start_local < twenty_four_hours_later:
-            events.append((start_local, end_local, summary))
+        # Add the event to our list
+        # Note: We don't need to filter by time here because recurring-ical-events
+        # already filtered events to be within our time window
+        events.append((start_local, end_local, summary))
 
     # Sort events by start time
     events.sort(key=lambda x: x[0])
