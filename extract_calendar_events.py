@@ -3,12 +3,14 @@
 Google Calendar Lap Swim Event Extractor
 
 This script fetches events from a Google Calendar ICS feed and extracts
-lap swim events occurring within the next 72 hours, displaying the time
-and number of lanes available.
+lap swim events occurring within a specified time window (default 24 hours),
+displaying the day, time, and number of lanes available.
 
 Usage:
-    python extract_calendar_events.py              # Normal mode (filtered output)
-    python extract_calendar_events.py --debug      # Debug mode (show all events)
+    python extract_calendar_events.py                    # Normal mode (24-hour window)
+    python extract_calendar_events.py --hours 72         # Custom time window
+    python extract_calendar_events.py --debug            # Debug mode (show all events)
+    python extract_calendar_events.py --hours 48 --debug # Custom window with debug
 """
 
 import argparse
@@ -120,17 +122,18 @@ def normalize_to_local_timezone(dt: datetime, local_tz: pytz.timezone) -> dateti
     return dt.astimezone(local_tz)
 
 
-def get_events_in_next_72_hours(calendar: Calendar, local_tz: pytz.timezone) -> List[Tuple[datetime, datetime, str]]:
+def get_events_in_time_window(calendar: Calendar, local_tz: pytz.timezone, hours: int = 24) -> List[Tuple[datetime, datetime, str]]:
     """
-    Extract all events from the calendar that occur within the next 72 hours.
+    Extract all events from the calendar that occur within the specified time window.
 
-    This function now properly handles recurring events by expanding them using
+    This function properly handles recurring events by expanding them using
     the recurring-ical-events library. This means that events with RRULE
     (recurrence rules) will be expanded into individual instances.
 
     Args:
         calendar: The parsed Calendar object
         local_tz: The local timezone to use for filtering and display
+        hours: Number of hours to look ahead (default: 24)
 
     Returns:
         A list of tuples containing (start_time, end_time, summary) for each event
@@ -139,8 +142,8 @@ def get_events_in_next_72_hours(calendar: Calendar, local_tz: pytz.timezone) -> 
     # Get the current time in the local timezone
     now = datetime.now(local_tz)
 
-    # Calculate the end of the 72-hour window
-    seventy_two_hours_later = now + timedelta(hours=72)
+    # Calculate the end of the time window
+    window_end = now + timedelta(hours=hours)
 
     events = []
 
@@ -148,7 +151,7 @@ def get_events_in_next_72_hours(calendar: Calendar, local_tz: pytz.timezone) -> 
     # This library automatically handles RRULE, EXDATE, RDATE, and other recurrence features
     # The 'between()' method returns expanded event instances, not just the base definitions
     # Convert to list to ensure all events are fetched
-    expanded_events = list(recurring_ical_events.of(calendar).between(now, seventy_two_hours_later))
+    expanded_events = list(recurring_ical_events.of(calendar).between(now, window_end))
 
     # Process each expanded event instance
     for component in expanded_events:
@@ -225,32 +228,46 @@ def format_time(dt: datetime) -> str:
 
 def print_filtered_output(events: List[Tuple[datetime, datetime, int]]) -> None:
     """
-    Print lap swim events in the requested format: HH:MM - HH:MM N lanes
+    Print lap swim events in the requested format: Day HH:MM - HH:MM N lanes ****
+
+    Format includes:
+    - 3-letter day of week (Mon, Tue, Wed, etc.)
+    - Start and end times in HH:MM format
+    - Number of lanes with proper singular/plural
+    - Visual asterisks (*) representing number of lanes
 
     Args:
         events: List of (start_time, end_time, lane_count) tuples
     """
     for start_time, end_time, lane_count in events:
+        # Get day of week in 3-letter format (Mon, Tue, Wed, etc.)
+        day_of_week = start_time.strftime('%a')
+
+        # Format times
         start_str = format_time(start_time)
         end_str = format_time(end_time)
 
         # Use proper singular/plural form
         lane_word = "lane" if lane_count == 1 else "lanes"
 
-        print(f"{start_str} - {end_str} {lane_count} {lane_word}")
+        # Create visual representation with asterisks
+        asterisks = '*' * lane_count
+
+        print(f"{day_of_week} {start_str} - {end_str} {lane_count} {lane_word} {asterisks}")
 
 
-def print_debug_output(events: List[Tuple[datetime, datetime, str]]) -> None:
+def print_debug_output(events: List[Tuple[datetime, datetime, str]], hours: int) -> None:
     """
     Print all events in debug mode with full details.
 
     Args:
         events: List of (start_time, end_time, summary) tuples
+        hours: Number of hours in the search window
     """
-    print("=== DEBUG MODE: All events in the next 72 hours ===\n")
+    print(f"=== DEBUG MODE: All events in the next {hours} hours ===\n")
 
     if not events:
-        print("No events found in the next 72 hours.")
+        print(f"No events found in the next {hours} hours.")
         return
 
     for i, (start_time, end_time, summary) in enumerate(events, 1):
@@ -275,7 +292,13 @@ def main():
     """
     # Set up command-line argument parsing
     parser = argparse.ArgumentParser(
-        description='Extract lap swim events from Google Calendar within the next 72 hours'
+        description='Extract lap swim events from Google Calendar within a specified time window'
+    )
+    parser.add_argument(
+        '--hours',
+        type=int,
+        default=24,
+        help='Number of hours to look ahead (default: 24)'
     )
     parser.add_argument(
         '--debug',
@@ -285,19 +308,24 @@ def main():
 
     args = parser.parse_args()
 
+    # Validate hours argument
+    if args.hours <= 0:
+        print("Error: --hours must be a positive number", file=sys.stderr)
+        sys.exit(1)
+
     # Step 1: Fetch the calendar data from the URL
     ics_data = fetch_calendar_data(CALENDAR_URL)
 
     # Step 2: Parse the ICS data into a Calendar object
     calendar = parse_calendar(ics_data)
 
-    # Step 3: Extract events occurring in the next 72 hours
-    all_events = get_events_in_next_72_hours(calendar, LOCAL_TIMEZONE)
+    # Step 3: Extract events occurring in the specified time window
+    all_events = get_events_in_time_window(calendar, LOCAL_TIMEZONE, args.hours)
 
     # Step 4: Display results based on mode
     if args.debug:
         # Debug mode: Show all events with full details
-        print_debug_output(all_events)
+        print_debug_output(all_events, args.hours)
     else:
         # Normal mode: Filter and show only lap swim events
         lap_swim_events = filter_lap_swim_events(all_events)
