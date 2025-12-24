@@ -3,7 +3,7 @@
 Google Calendar Lap Swim Event Extractor
 
 This script fetches events from a Google Calendar ICS feed and extracts
-lap swim events occurring within the next 24 hours, displaying the time
+lap swim events occurring within the next 72 hours, displaying the time
 and number of lanes available.
 
 Usage:
@@ -120,9 +120,9 @@ def normalize_to_local_timezone(dt: datetime, local_tz: pytz.timezone) -> dateti
     return dt.astimezone(local_tz)
 
 
-def get_events_in_next_24_hours(calendar: Calendar, local_tz: pytz.timezone) -> List[Tuple[datetime, datetime, str]]:
+def get_events_in_next_72_hours(calendar: Calendar, local_tz: pytz.timezone) -> List[Tuple[datetime, datetime, str]]:
     """
-    Extract all events from the calendar that occur within the next 24 hours.
+    Extract all events from the calendar that occur within the next 72 hours.
 
     This function now properly handles recurring events by expanding them using
     the recurring-ical-events library. This means that events with RRULE
@@ -139,15 +139,16 @@ def get_events_in_next_24_hours(calendar: Calendar, local_tz: pytz.timezone) -> 
     # Get the current time in the local timezone
     now = datetime.now(local_tz)
 
-    # Calculate the end of the 24-hour window
-    twenty_four_hours_later = now + timedelta(hours=24)
+    # Calculate the end of the 72-hour window
+    seventy_two_hours_later = now + timedelta(hours=72)
 
     events = []
 
     # Use recurring-ical-events to expand recurring events within our time window
     # This library automatically handles RRULE, EXDATE, RDATE, and other recurrence features
     # The 'between()' method returns expanded event instances, not just the base definitions
-    expanded_events = recurring_ical_events.of(calendar).between(now, twenty_four_hours_later)
+    # Convert to list to ensure all events are fetched
+    expanded_events = list(recurring_ical_events.of(calendar).between(now, seventy_two_hours_later))
 
     # Process each expanded event instance
     for component in expanded_events:
@@ -246,10 +247,10 @@ def print_debug_output(events: List[Tuple[datetime, datetime, str]]) -> None:
     Args:
         events: List of (start_time, end_time, summary) tuples
     """
-    print("=== DEBUG MODE: All events in the next 24 hours ===\n")
+    print("=== DEBUG MODE: All events in the next 72 hours ===\n")
 
     if not events:
-        print("No events found in the next 24 hours.")
+        print("No events found in the next 72 hours.")
         return
 
     for i, (start_time, end_time, summary) in enumerate(events, 1):
@@ -274,7 +275,7 @@ def main():
     """
     # Set up command-line argument parsing
     parser = argparse.ArgumentParser(
-        description='Extract lap swim events from Google Calendar within the next 24 hours'
+        description='Extract lap swim events from Google Calendar within the next 72 hours'
     )
     parser.add_argument(
         '--debug',
@@ -290,8 +291,8 @@ def main():
     # Step 2: Parse the ICS data into a Calendar object
     calendar = parse_calendar(ics_data)
 
-    # Step 3: Extract events occurring in the next 24 hours
-    all_events = get_events_in_next_24_hours(calendar, LOCAL_TIMEZONE)
+    # Step 3: Extract events occurring in the next 72 hours
+    all_events = get_events_in_next_72_hours(calendar, LOCAL_TIMEZONE)
 
     # Step 4: Display results based on mode
     if args.debug:
