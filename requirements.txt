@@ -6,3 +6,4 @@ pydantic==2.5.3
 aiohttp==3.9.1
 icalendar>=5.0.0
 pytz>=2023.3
+recurring-ical-events>=2.0.0
